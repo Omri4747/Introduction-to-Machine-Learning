@@ -1,58 +1,39 @@
 import numpy as np
+from numpy import ndarray
 from scipy.spatial import distance
+from matplotlib import pyplot as plt
+import tqdm
 from typing import List, TypeVar
 
 ExampleType = TypeVar("ExampleType")
 LabelType = TypeVar("LabelType")
 
 
-class KNearestNeighbor:
-    def __init__(self, examples: List[ExampleType], labels: List[LabelType], k: int):
+class KNearestNeighborClassifier:
+    def __init__(self, examples: List[ExampleType], labels: np.ndarray, k: int):
         self.examples = examples
-        self.labels = labels
+        self.labels = labels.astype(int)
         self.k = k
-        self.example_label_dict = {}
 
-    def find_k_closest_neighbor(self, x: ExampleType) -> List[ExampleType]:
-        """
-
-        :param x: data point, not necessary from examples
-        :return: kth closest neighbors by euclidean distance
-        """
-        distances = []
-        for neighbor in self.examples:
-            curr_distance = distance.euclidean(neighbor, x)
-            distances.append((curr_distance, neighbor))
-        distances.sort(key=lambda a: a[0])
-        k_distances = distances[:self.k]
-        k_neighbors = [a[1] for a in k_distances]
-        return k_neighbors
-
-    def get_label(self, example: ExampleType) -> LabelType:
+    def find_k_closest_labels(self, x: ExampleType) -> List[LabelType]:
         f"""
-        takes example that is in {self.examples} and returns its label
-        :param example: {example} to check
-        :return: the label of example
+
+        :param x: data point, not necessary from {self.examples}
+        :return: kth closest neighbors by euclidean distance from {self.examples}
         """
-        index = 0
-        for optional in self.examples:
-            if np.array_equal(optional, example):
-                break
-            index += 1
-        if index == len(self.examples):
-            raise ValueError("Was given a data point that is not in examples")
-        return self.labels[index]
+        # tuple (distance, index)
+        distances = [(distance.euclidean(neighbor, x), index) for index, neighbor in enumerate(self.examples)]
+        # sort by distance
+        distances.sort(key=lambda a: a[0])
+        # get k nearest distances
+        k_distances = distances[:self.k]
+        # get k nearest labels by the index of them
+        k_neighbors_labels = [self.labels[a[1]] for a in k_distances]
+        return k_neighbors_labels
 
     def find_k_nearest_neighbors_label(self, x: ExampleType) -> LabelType:
-        k_neighbors = self.find_k_closest_neighbor(x)
-        labels_count = {}
-        for example in k_neighbors:
-            label = self.get_label(example)
-            if label in labels_count.keys():
-                labels_count[label] = labels_count[label] + 1
-            else:
-                labels_count[label] = 1
-        return max(labels_count)
+        k_neighbors_labels = np.array(self.find_k_closest_labels(x))
+        return np.bincount(k_neighbors_labels).argmax()
 
 
 def gensmallm(x_list: List[ExampleType], y_list: List[LabelType], m: int):
@@ -90,21 +71,18 @@ def learnknn(k: int, x_train: np.array, y_train: np.array):
     :return: classifier data structure
     """
 
-    classifier = KNearestNeighbor(x_train, y_train, k)
+    classifier = KNearestNeighborClassifier(x_train, y_train, k)
     return classifier
 
 
-def predictknn(classifier: KNearestNeighbor, x_test: np.array):
+def predictknn(classifier: KNearestNeighborClassifier, x_test: np.array):
     """
 
     :param classifier: data structure returned from the function learnknn
     :param x_test: numpy array of size (n, d) containing test examples that will be classified
     :return: numpy array of size (n, 1) classifying the examples in x_test
     """
-    labels = []
-    for test in x_test:
-        label = classifier.find_k_nearest_neighbors_label(test)
-        labels.append(label)
+    labels = [classifier.find_k_nearest_neighbors_label(test) for test in x_test]
     return np.array([labels]).transpose()
 
 
@@ -143,6 +121,124 @@ def simple_test():
         print(f"The {i}'th test sample was classified as {preds[i]}")
 
 
+def run_knn_mnist_sample_size(k: int, training_sample_size: int, x_test, y_test, trains, labels) -> ndarray:
+    x_train, y_train = gensmallm(trains, labels, training_sample_size)
+
+    classifer = learnknn(k, x_train, y_train)
+
+    preds = predictknn(classifer, x_test)
+    y_test = y_test.astype(int).reshape(preds.shape)
+    error = np.mean(y_test != preds)
+
+    return error
+
+
+def run_knn_mnist_k1():
+    """
+    run knn with k=1
+    :return:
+    """
+    data = np.load("mnist_all.npz")
+
+    test2 = data['test2']
+    test3 = data['test3']
+    test5 = data['test5']
+    test6 = data['test6']
+
+    train2 = data['train2']
+    train3 = data['train3']
+    train5 = data['train5']
+    train6 = data['train6']
+
+    to_train = [train2, train3, train5, train6]
+    labels = [2, 3, 5, 6]
+
+    test_length = test2.shape[0] + test3.shape[0] + test5.shape[0] + test6.shape[0]
+
+    x_test, y_test = gensmallm([test2, test3, test5, test6], [2, 3, 5, 6], test_length)
+    k = 1
+    each_sample_repetition = 10
+    sample_sizes = []
+    avg_errors = []
+    errors_per_run = {}
+    min_errors = []
+    max_errors = []
+    for training_sample_size in range(1, 101, 10):
+        sample_sizes.append(training_sample_size)
+        errors_per_run[training_sample_size] = []
+        for _ in range(each_sample_repetition):
+            error = run_knn_mnist_sample_size(k, training_sample_size, x_test, y_test, to_train, labels)
+            errors_per_run[training_sample_size].append(error)
+        avg_errors.append(sum(errors_per_run[training_sample_size]) / each_sample_repetition)
+        min_errors.append(min(errors_per_run[training_sample_size]))
+        max_errors.append(max(errors_per_run[training_sample_size]))
+
+    min_distance = [a - b for a, b in zip(avg_errors, min_errors)]
+    max_distance = [b - a for a, b in zip(avg_errors, max_errors)]
+    error_bar = np.array([min_distance, max_distance])
+    plt.plot(sample_sizes, avg_errors, color='blue', marker="o")
+    plt.errorbar(sample_sizes, avg_errors, yerr=error_bar, fmt="none", ecolor='red')
+    plt.xlabel("Training Sample Size")
+    plt.ylabel("Average Error")
+    plt.title(f"Average Error of KNearestNeighbors with k = {k}")
+    plt.show()
+
+
+def run_knn_mnist(training_sample_size, k_min, k_max):
+    data = np.load("mnist_all.npz")
+
+    test2 = data['test2']
+    test3 = data['test3']
+    test5 = data['test5']
+    test6 = data['test6']
+
+    train2 = data['train2']
+    train3 = data['train3']
+    train5 = data['train5']
+    train6 = data['train6']
+
+    to_train = [train2, train3, train5, train6]
+    labels = [2, 3, 5, 6]
+
+    test_length = test2.shape[0] + test3.shape[0] + test5.shape[0] + test6.shape[0]
+
+    x_test, y_test = gensmallm([test2, test3, test5, test6], [2, 3, 5, 6], test_length)
+    each_sample_repetition = 10
+    avg_errors = []
+    errors_per_run = {}
+    min_errors = []
+    max_errors = []
+
+    for k in tqdm.tqdm(range(k_min, k_max+1)):
+        errors_per_run[k] = []
+        for _ in tqdm.tqdm(range(each_sample_repetition)):
+            error = run_knn_mnist_sample_size(k, training_sample_size, x_test, y_test, to_train, labels)
+            errors_per_run[k].append(error)
+        avg_errors.append(sum(errors_per_run[k]) / each_sample_repetition)
+        min_errors.append(min(errors_per_run[k]))
+        max_errors.append(max(errors_per_run[k]))
+
+    min_distance = [a - b for a, b in zip(avg_errors, min_errors)]
+    max_distance = [b - a for a, b in zip(avg_errors, max_errors)]
+    error_bar = np.array([min_distance, max_distance])
+    ks = list(range(k_min, k_max+1))
+    plt.plot(ks, avg_errors, color='blue', marker="o")
+    plt.errorbar(ks, avg_errors, yerr=error_bar, fmt="none", ecolor='red')
+    plt.xlabel("k")
+    plt.ylabel("Average Error")
+    plt.title(f"Average Error of KNearestNeighbors with Sample Size = {training_sample_size}")
+    plt.show()
+
+
 if __name__ == '__main__':
     # before submitting, make sure that the function simple_test runs without errors
-    simple_test()
+    # simple_test()
+
+    # 2.a
+    # run_knn_mnist_k1()
+
+    # 2.e
+    sample_size = 200
+    k_min = 1
+    k_max = 11
+    run_knn_mnist(sample_size, k_min, k_max)
