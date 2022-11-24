@@ -2,7 +2,6 @@ import numpy as np
 from numpy import ndarray
 from scipy.spatial import distance
 from matplotlib import pyplot as plt
-import tqdm
 from typing import List, TypeVar
 import random
 
@@ -37,17 +36,6 @@ class KNearestNeighborClassifier:
         return np.bincount(k_neighbors_labels).argmax()
 
 
-def choose_other(curr, l: list):
-    f"""
-    chooses element from list {l} that is different than {curr}
-    :param curr: 
-    :param l: 
-    :return: 
-    """
-    if curr in l:
-        l = [elem for elem in l if elem != curr] # new list without the current element
-    return random.choice(l)
-
 def gensmallm_corrupted(x_list: List[ExampleType], y_list: List[LabelType], m: int, rate: float = 0.15):
     f"""
     generates a random corrupted with rate of {rate}
@@ -68,13 +56,15 @@ def gensmallm_corrupted(x_list: List[ExampleType], y_list: List[LabelType], m: i
     rearranged_y = y[indices]
     rearranged_x = rearranged_x[:m]
     rearranged_y = rearranged_y[:m]
-    for i in range(len(rearranged_y)):
-        if random.uniform(1,100) > rate*100:
-            continue
+    indexes = random.choices(range(len(rearranged_y)), k=int(len(rearranged_y) * rate))
+    label_choose = {}
+    for label in y_list:
+        label_choose[label] = [lab for lab in y_list if lab != label]
+    for i in indexes:
         label = rearranged_y[i]
-        new_label = choose_other(label, y_list)
-        rearranged_y[i] = new_label
+        rearranged_y[i] = random.choice(label_choose[label])
     return rearranged_x, rearranged_y
+
 
 def gensmallm(x_list: List[ExampleType], y_list: List[LabelType], m: int):
     """
@@ -97,8 +87,6 @@ def gensmallm(x_list: List[ExampleType], y_list: List[LabelType], m: int):
     rearranged_y = y[indices]
 
     return rearranged_x[:m], rearranged_y[:m]
-
-
 
 
 def learnknn(k: int, x_train: np.array, y_train: np.array):
@@ -171,6 +159,7 @@ def run_knn_mnist_sample_size(k: int, training_sample_size: int, x_test, y_test,
 
     return error
 
+
 def run_knn_mnist_sample_size_corrupted(k: int, training_sample_size: int, x_test, y_test, trains, labels) -> ndarray:
     x_train, y_train = gensmallm_corrupted(trains, labels, training_sample_size)
 
@@ -181,6 +170,7 @@ def run_knn_mnist_sample_size_corrupted(k: int, training_sample_size: int, x_tes
     error = np.mean(y_test != preds)
 
     return error
+
 
 def run_knn_mnist_k1():
     """
@@ -258,9 +248,9 @@ def run_knn_mnist(training_sample_size, k_min, k_max):
     min_errors = []
     max_errors = []
 
-    for k in tqdm.tqdm(range(k_min, k_max+1)):
+    for k in range(k_min, k_max + 1):
         errors_per_run[k] = []
-        for _ in tqdm.tqdm(range(each_sample_repetition)):
+        for _ in range(each_sample_repetition):
             error = run_knn_mnist_sample_size(k, training_sample_size, x_test, y_test, to_train, labels)
             errors_per_run[k].append(error)
         avg_errors.append(sum(errors_per_run[k]) / each_sample_repetition)
@@ -270,7 +260,7 @@ def run_knn_mnist(training_sample_size, k_min, k_max):
     min_distance = [a - b for a, b in zip(avg_errors, min_errors)]
     max_distance = [b - a for a, b in zip(avg_errors, max_errors)]
     error_bar = np.array([min_distance, max_distance])
-    ks = list(range(k_min, k_max+1))
+    ks = list(range(k_min, k_max + 1))
     plt.plot(ks, avg_errors, color='blue', marker="o")
     plt.errorbar(ks, avg_errors, yerr=error_bar, fmt="none", ecolor='red')
     plt.xlabel("k")
@@ -304,10 +294,10 @@ def run_knn_mnist_corrupted(training_sample_size, k_min, k_max):
     min_errors = []
     max_errors = []
 
-    for k in tqdm.tqdm(range(k_min, k_max+1)):
+    for k in range(k_min, k_max + 1):
         errors_per_run[k] = []
-        for _ in tqdm.tqdm(range(each_sample_repetition)):
-            error = run_knn_mnist_sample_size(k, training_sample_size, x_test, y_test, to_train, labels)
+        for _ in range(each_sample_repetition):
+            error = run_knn_mnist_sample_size_corrupted(k, training_sample_size, x_test, y_test, to_train, labels)
             errors_per_run[k].append(error)
         avg_errors.append(sum(errors_per_run[k]) / each_sample_repetition)
         min_errors.append(min(errors_per_run[k]))
@@ -316,13 +306,14 @@ def run_knn_mnist_corrupted(training_sample_size, k_min, k_max):
     min_distance = [a - b for a, b in zip(avg_errors, min_errors)]
     max_distance = [b - a for a, b in zip(avg_errors, max_errors)]
     error_bar = np.array([min_distance, max_distance])
-    ks = list(range(k_min, k_max+1))
+    ks = list(range(k_min, k_max + 1))
     plt.plot(ks, avg_errors, color='blue', marker="o")
     plt.errorbar(ks, avg_errors, yerr=error_bar, fmt="none", ecolor='red')
     plt.xlabel("k")
     plt.ylabel("Average Error")
-    plt.title(f"Average Error of KNearestNeighbors with Sample Size = {training_sample_size}")
+    plt.title(f"Average Error of KNearestNeighbors with corrupted 15% of the labels and  with Sample Size = {training_sample_size}")
     plt.show()
+
 
 if __name__ == '__main__':
     # before submitting, make sure that the function simple_test runs without errors
