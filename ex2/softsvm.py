@@ -17,10 +17,6 @@ def calcA(m, d, trainX, trainy):
 
 
 def calcH(l, m, d):
-    # block_1_H = np.eye(d) * (2 * l)
-    # block_2_H = np.zeros((d, m))
-    # block_3_4_H = np.zeros((m, m + d))
-    # H = np.block([[block_1_H, block_2_H], [block_3_4_H]])
     H = spmatrix(2 * l, range(d), range(d), (d + m, d + m))
     return H
 
@@ -91,9 +87,10 @@ def simple_test():
 
 
 def calc_error(w, testX, testy):
-    predictys = [np.sign(testX[i] @ w) for i in range(testX.shape[0])]
+    predictys = [int(np.sign(testX[i] @ w)) for i in range(testX.shape[0])]
     predictys = np.array(predictys)
     testy = testy.reshape((testy.shape[0], 1))
+    predictys = predictys.reshape(predictys.shape[0], 1)
     total_errors = np.sum(predictys != testy)
     return total_errors / testy.shape[0]
 
@@ -151,6 +148,54 @@ def calc_min_max_avg_plot_results(xs, errors):
     plot_results(xs, test_errors, 'green', label="test result: m = 100")
 
 
+def k_cross_validation(num_of_folds):
+    data = np.load('EX2q4_data.npz')
+    trainX = data['Xtrain']
+    testX = data['Xtest']
+    trainy = data['Ytrain']
+    testy = data['Ytest']
+    lambda_options = [1, 10, 100]
+    trainX_sets = np.split(trainX, num_of_folds)
+    trainy_sets = np.split(trainy, num_of_folds)
+    errors = []
+    avg_errors = []
+    for l in tqdm(lambda_options):
+        for i in tqdm(range(num_of_folds)):
+            if i != 0 and i != num_of_folds - 1:
+                curr_trainX = np.concatenate((np.concatenate(trainX_sets[:i]), np.concatenate(trainX_sets[i + 1:])))
+                curr_trainy = np.concatenate((np.concatenate(trainy_sets[:i]), np.concatenate(trainy_sets[i + 1:])))
+            elif i == 0:
+                curr_trainX = np.concatenate(trainX_sets[i + 1:])
+                curr_trainy = np.concatenate(trainy_sets[i + 1:])
+            else:
+                curr_trainX = np.concatenate(trainX_sets[:i])
+                curr_trainy = np.concatenate(trainy_sets[:i])
+            curr_testy = trainy_sets[i]
+            curr_testX = trainX_sets[i]
+
+            w = softsvm(l, curr_trainX, curr_trainy)
+            print(w)
+            val_error = calc_error(w, curr_testX, curr_testy)
+            errors.append(val_error)
+
+        avg_error = sum(errors) / len(errors)
+        avg_errors.append(avg_error)
+        print(f"errors for l={l}: {errors}")
+        errors.clear()
+
+    min_error = min(avg_errors)
+    index = avg_errors.index(min_error)
+    for i, l in enumerate(lambda_options):
+        print(f"l={l}, error={avg_errors[i]}")
+    l = lambda_options[index]
+    print(f"l={l}, are the best")
+    w = softsvm(l, trainX, trainy)
+    final_error = calc_error(w, testX, testy)
+    print(f"final error is {final_error}")
+    return w
+
+
+
 def test_sample(sample_size):
     # load question 2 data
     data = np.load('EX2q2_mnist.npz')
@@ -199,4 +244,6 @@ if __name__ == '__main__':
     simple_test()
 
     # here you may add any code that uses the above functions to solve question 2
-    test_sample(100)
+    # test_sample(100)
+
+    k_cross_validation(5)
