@@ -19,6 +19,13 @@ def polynomial_kernel(x1: np.array, x2: np.array, k):
     return (1 + numpy.inner(x1, x2)) ** k
 
 
+class Psi:
+    def __init__(self, k):
+        self.k = k
+
+    def x(self):
+        
+
 def calcG(trainX, k, l):
     m = trainX.shape[0]
     G = np.zeros((m, m))
@@ -75,6 +82,13 @@ def calcH(l, G, m):
     return matrix(H)
 
 
+def predict(x, k, trainX, alpha):
+    kernel_calculations = [polynomial_kernel(xj, x, k) for xj in trainX]
+    kernel_calculations = np.array(kernel_calculations)
+    a = alpha.reshape(alpha.shape[0])
+    return int(np.sign(np.inner(a, kernel_calculations)))
+
+
 # todo: complete the following functions, you may add auxiliary functions or define class to help you
 def softsvmpoly(l: float, k: int, trainX: np.array, trainy: np.array):
     """
@@ -96,13 +110,7 @@ def softsvmpoly(l: float, k: int, trainX: np.array, trainy: np.array):
     alpha_zeta = sol["x"]
     alpha = np.array(alpha_zeta[:m])
 
-    def predictor(x):
-        kernel_calculations = [polynomial_kernel(xj, x, k) for xj in trainX]
-        kernel_calculations = np.array(kernel_calculations)
-        a = alpha.reshape(alpha.shape[0])
-        return int(np.sign(np.inner(a, kernel_calculations)))
-
-    return predictor
+    return alpha
 
 
 def plot_points_from_dataset():
@@ -123,8 +131,8 @@ def plot_points_from_dataset():
     print("hi")
 
 
-def calc_error(predictor, testX, testy):
-    predictys = [predictor(x) for x in testX]
+def calc_error(alpha, testX, testy, trainX, k):
+    predictys = [predict(x, k, trainX, alpha) for x in testX]
     predictys = np.array(predictys)
     testy = testy.reshape((testy.shape[0], 1))
     predictys = predictys.reshape(predictys.shape[0], 1)
@@ -159,8 +167,8 @@ def k_cross_validation(num_of_folds):
             curr_testy = trainy_sets[i]
             curr_testX = trainX_sets[i]
 
-            predictor = softsvmpoly(l, k, curr_trainX, curr_trainy)
-            val_error = calc_error(predictor, curr_testX, curr_testy)
+            alpha = softsvmpoly(l, k, curr_trainX, curr_trainy)
+            val_error = calc_error(alpha, curr_testX, curr_testy, trainX, k)
             errors.append(val_error)
 
         avg_error = sum(errors) / len(errors)
@@ -173,10 +181,29 @@ def k_cross_validation(num_of_folds):
         print(f"l={l}, k={k}, error={avg_errors[i]}")
     l, k = options[index]
     print(f"l={l}, k={k} are the best")
-    w = softsvmpoly(l, k, trainX, trainy)
-    final_error = calc_error(w, testX, testy)
+    alpha = softsvmpoly(l, k, trainX, trainy)
+    final_error = calc_error(alpha, testX, testy, trainX, k)
     print(f"final error is {final_error}")
-    return w
+    return alpha
+
+
+def plot_regions(alpha, k, trainX):
+    grid = []
+    for i in tqdm(range(-50, 50)):
+        row = []
+        for j in range(-50, 50):
+            point = (j / 50., i / 50.)
+            prediction = predict(point, k, trainX, alpha)
+            if prediction == 1:
+                row.append([255, 0, 0])
+            else:
+                row.append([0, 0, 255])
+        grid.insert(0, row)
+
+    plt.imshow(grid,  extent=[-1, 1, -1, 1])
+    plt.title(f"for lambda=100 and k = {k}")
+    plt.show()
+
 
 def simple_test():
     # load question 2 data
@@ -192,18 +219,54 @@ def simple_test():
     indices = np.random.permutation(trainX.shape[0])
     _trainX = trainX[indices[:m]]
     _trainy = trainy[indices[:m]]
-
-    # run the softsvmpoly algorithm
-    w = softsvmpoly(10, 5, _trainX, _trainy)
-
     # tests to make sure the output is of the intended class and shape
+
+    w = run_svm_plot_regions()
+
     assert isinstance(w, np.ndarray), "The output of the function softsvmbf should be a numpy array"
     assert w.shape[0] == m and w.shape[1] == 1, f"The shape of the output should be ({m}, 1)"
+
+
+def run_svm_plot_regions():
+    # load question 2 data
+    data = np.load('EX2q4_data.npz')
+    trainX = data['Xtrain']
+    testX = data['Xtest']
+    trainy = data['Ytrain']
+    testy = data['Ytest']
+
+    l = 100
+    ks = [3, 5, 8]
+    for k in ks:
+        # run the softsvmpoly algorithm
+        alpha = softsvmpoly(l, k, trainX, trainy)
+        plot_regions(alpha, k, trainX)
+
+
+
+def run_svm_calc_w():
+    # load question 2 data
+    data = np.load('EX2q4_data.npz')
+    trainX = data['Xtrain']
+    testX = data['Xtest']
+    trainy = data['Ytrain']
+    testy = data['Ytest']
+
+    l = 1
+    k = 5
+    alpha = softsvmpoly(l, k, trainX, trainy)
+    print("hi")
 
 
 if __name__ == '__main__':
     # before submitting, make sure that the function simple_test runs without errors
     # simple_test()
+    # 4.a)
     # plot_points_from_dataset()
-    k_cross_validation(5)
+    # 4.c)
+    # k_cross_validation(5)
     # here you may add any code that uses the above functions to solve question 4
+    # 4.e )
+    # run_svm_plot_regions()
+    # 4.f)
+    run_svm_calc_w()
