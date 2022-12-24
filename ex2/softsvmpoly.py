@@ -1,9 +1,10 @@
-import numpy
 import numpy as np
 from cvxopt import solvers, matrix, spmatrix, spdiag, sparse
 import matplotlib.pyplot as plt
+from numpy import ndarray
 from tqdm import tqdm
-
+from functools import reduce
+from math import factorial
 
 def calc_gaussian_gram(trainX: np.array, sigma: float):
     m = trainX.shape[0]
@@ -15,33 +16,23 @@ def calc_gaussian_gram(trainX: np.array, sigma: float):
 
     return G
 
+
 def polynomial_kernel(x1: np.array, x2: np.array, k):
-    return (1 + numpy.inner(x1, x2)) ** k
+    return (1 + np.inner(x1, x2)) ** k
 
-
-class Psi:
-    def __init__(self, k):
-        self.k = k
-
-    def x(self):
-        
 
 def calcG(trainX, k, l):
     m = trainX.shape[0]
     G = np.zeros((m, m))
-    # g_tag = calc_gaussian_gram(trainX, k)
     for i in range(m):
         for j in range(m):
             g_i_j = polynomial_kernel(trainX[i], trainX[j], k)
             G[i][j] = g_i_j
-
-            # G[j][i] = g_i_j
-
+            G[j][i] = g_i_j
     return G
 
 
 def calcu(m, d):
-    # x = (1 / m) * (np.append(np.zeros(m, dtype=float), np.ones(m, dtype=float)))
     d_zeros = np.zeros(d)
     m_1_m = np.ones(m) * (1 / m)
     u = np.concatenate((d_zeros, m_1_m))
@@ -68,17 +59,9 @@ def calcH(l, G, m):
     block_2_H = np.zeros((m, m))
     block_3_H = np.zeros((m, m))
     block_4_H = np.zeros((m, m))
-    # block_1_H += np.full(m, 1.e-5)
     H = np.block([[block_1_H, block_2_H], [block_3_H, block_4_H]])
-    epsilon_eye = np.eye(2*m) * 1e-5
+    epsilon_eye = np.eye(2 * m) * 1e-5
     H += epsilon_eye
-    # H = H + helper
-    # zeros = spmatrix(0., [], [], (m, m))
-    # x = spdiag([(2 * l) * G, zeros])
-    # # check for positive definite
-    # helper_matrix = spmatrix(np.full(m, 1.e-5), range(m), range(m), (2 * m, 2 * m))
-    # x = x + helper_matrix
-    # H = 2 * l * G
     return matrix(H)
 
 
@@ -128,6 +111,7 @@ def plot_points_from_dataset():
     plt.scatter(red_xs, red_ys, color="red", label="label = 1")
     plt.scatter(blue_xs, blue_ys, color="blue", label="label = -1")
     plt.legend()
+    plt.show()
     print("hi")
 
 
@@ -200,7 +184,7 @@ def plot_regions(alpha, k, trainX):
                 row.append([0, 0, 255])
         grid.insert(0, row)
 
-    plt.imshow(grid,  extent=[-1, 1, -1, 1])
+    plt.imshow(grid, extent=[-1, 1, -1, 1])
     plt.title(f"for lambda=100 and k = {k}")
     plt.show()
 
@@ -243,6 +227,36 @@ def run_svm_plot_regions():
         plot_regions(alpha, k, trainX)
 
 
+def poly_feature_mapping(x, k):
+  d = len(x)
+  psi = []
+  for i in range(k+1):
+    for j in range(i+1):
+      psi.append(x[0]**(i-j) * x[1]**j)
+  return psi
+
+
+def B(k: int, t: list):
+    divisors = [factorial(x) for x in t]
+    return factorial(k) // reduce(lambda x, y: x * y, divisors)
+
+
+def psi(x, k) -> ndarray:
+    d = x.shape[0]
+    ps = []
+    for i in range(k+1):
+        for j in range(k+1-i):
+            t = [i, j]
+            b = B(k, t) ** 0.5
+            for xi in range(d):
+                b *= (x[xi] ** t[xi])
+            ps.append(b)
+    return np.array(ps)
+
+
+def predict_with_w(w, x, k):
+    return np.sign(np.inner(w, psi(x, k)))
+
 
 def run_svm_calc_w():
     # load question 2 data
@@ -255,6 +269,36 @@ def run_svm_calc_w():
     l = 1
     k = 5
     alpha = softsvmpoly(l, k, trainX, trainy)
+    w: ndarray = psi(trainX[0], k) * alpha[0]
+    for i in range(1, len(trainX)):
+        x = trainX[i]
+        p = psi(x, k)
+        w += alpha[i] * p
+
+    predictions_1 = []
+    predictions_minus = []
+    for x in trainX:
+        label = predict_with_w(w, x, k)
+        if label == 1:
+            predictions_1.append(x)
+        else:
+            predictions_minus.append(x)
+
+    for x in testX:
+        label = predict_with_w(w, x, k)
+        if label == 1:
+            predictions_1.append(x)
+        else:
+            predictions_minus.append(x)
+
+    red_xs = [x[0] for x in predictions_1]
+    red_ys = [x[1] for x in predictions_1]
+    blue_xs = [x[0] for x in predictions_minus]
+    blue_ys = [x[1] for x in predictions_minus]
+    plt.scatter(red_xs, red_ys, color="red", label="label = 1")
+    plt.scatter(blue_xs, blue_ys, color="blue", label="label = -1")
+    plt.legend()
+    plt.show()
     print("hi")
 
 
@@ -265,7 +309,6 @@ if __name__ == '__main__':
     # plot_points_from_dataset()
     # 4.c)
     # k_cross_validation(5)
-    # here you may add any code that uses the above functions to solve question 4
     # 4.e )
     # run_svm_plot_regions()
     # 4.f)
