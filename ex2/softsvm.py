@@ -1,7 +1,6 @@
 import numpy as np
 from cvxopt import solvers, matrix, spmatrix, spdiag, sparse
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 
 
 # todo: complete the following functions, you may add auxiliary functions or define class to help you
@@ -134,7 +133,7 @@ def plot_results(xs, errors, line_color, error_color=None, label=None):
 def small_sample(trainX, testX, trainy, testy, m, d, l):
     train_errors = []
     test_errors = []
-    for _ in tqdm(range(10)):
+    for _ in range(10):
         train_error, test_error = run_softsvm(trainX, testX, trainy, testy, m, d, l)
         train_errors.append(train_error)
         test_errors.append(test_error)
@@ -159,8 +158,8 @@ def k_cross_validation(num_of_folds):
     trainy_sets = np.split(trainy, num_of_folds)
     errors = []
     avg_errors = []
-    for l in tqdm(lambda_options):
-        for i in tqdm(range(num_of_folds)):
+    for l in lambda_options:
+        for i in range(num_of_folds):
             if i != 0 and i != num_of_folds - 1:
                 curr_trainX = np.concatenate((np.concatenate(trainX_sets[:i]), np.concatenate(trainX_sets[i + 1:])))
                 curr_trainy = np.concatenate((np.concatenate(trainy_sets[:i]), np.concatenate(trainy_sets[i + 1:])))
@@ -209,7 +208,7 @@ def test_sample(sample_size):
     xs = []
     errors = []
     # small sample
-    for n in tqdm(range(1, 11)):
+    for n in range(1, 11):
         l = 10 ** n
         xs.append(l)
         train_errors, test_errors = small_sample(trainX, testX, trainy, testy, m, d, l)
