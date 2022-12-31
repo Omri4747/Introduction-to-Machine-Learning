@@ -2,7 +2,6 @@ import numpy as np
 from cvxopt import solvers, matrix, spmatrix, spdiag, sparse
 import matplotlib.pyplot as plt
 from numpy import ndarray
-from tqdm import tqdm
 from functools import reduce
 from math import factorial
 
@@ -137,8 +136,8 @@ def k_cross_validation(num_of_folds):
     trainy_sets = np.split(trainy, num_of_folds)
     errors = []
     avg_errors = []
-    for l, k in tqdm(options):
-        for i in tqdm(range(num_of_folds)):
+    for l, k in options:
+        for i in range(num_of_folds):
             if i != 0 and i != num_of_folds - 1:
                 curr_trainX = np.concatenate((np.concatenate(trainX_sets[:i]), np.concatenate(trainX_sets[i + 1:])))
                 curr_trainy = np.concatenate((np.concatenate(trainy_sets[:i]), np.concatenate(trainy_sets[i + 1:])))
@@ -173,7 +172,7 @@ def k_cross_validation(num_of_folds):
 
 def plot_regions(alpha, k, trainX):
     grid = []
-    for i in tqdm(range(-50, 50)):
+    for i in range(-50, 50):
         row = []
         for j in range(-50, 50):
             point = (j / 50., i / 50.)
