@@ -1,8 +1,9 @@
 import numpy as np
 import scipy.io as sio
+import matplotlib.pyplot as plt
 
 
-def update_clusters(X, clusters, dist_matrix, curr_loop):
+def update_clusters(X, clusters, dist_matrix):
     m = X.shape[0]
     min_dist_idx = np.unravel_index(np.argmin(dist_matrix), (m, m))
     a = min_dist_idx[0]
@@ -39,8 +40,8 @@ def singlelinkage(X, k):
         dist_matrix[i, i] = np.inf
 
     clusters = np.array(range(m))
-    for curr_loop in range(X.shape[0] - k):
-        clusters = update_clusters(X, clusters, dist_matrix, curr_loop)
+    for _ in range(X.shape[0] - k):
+        clusters = update_clusters(X, clusters, dist_matrix)
 
     return clusters.reshape((clusters.shape[0], 1))
 
@@ -60,8 +61,87 @@ def simple_test():
     assert c.shape[0] == m and c.shape[1] == 1, f"The shape of the output should be ({m}, 1)"
 
 
+def calc_error(c, k):
+    correct = 0
+    for i in range(k):
+        size = c[c == i].shape[0]
+        indexes = np.where(c == i)[0]
+        labels_count = [np.where((j*30 <= indexes) & ((j+1)*30 > indexes))[0].shape[0] for j in range(10)]
+        common = np.argmax(labels_count)
+        correct += labels_count[common]
+        percentage = labels_count[common] / sum(labels_count)
+        print(f"cluster {i}: size={size}, common={common},percentage={percentage:.2f}")
+    print(f"correct {correct} out of 1000. error of {1 - correct/300 :.2f}")
+
+
+def run_on_random():
+    data = np.load('mnist_all.npz')
+    data_examples = None
+    for i in range(10):
+        curr_data = data[f"train{i}"]
+        indices = np.random.choice(range(curr_data.shape[0]), 30)
+        to_concat = curr_data[indices]
+        if data_examples is not None:
+            data_examples = np.concatenate((data_examples, to_concat))
+        else:
+            data_examples = to_concat
+    X = data_examples
+    m, d = X.shape
+
+    # run K-means
+    k = 6
+    c = singlelinkage(X, k)
+
+    assert isinstance(c, np.ndarray), "The output of the function softsvm should be a numpy array"
+    assert c.shape[0] == m and c.shape[1] == 1, f"The shape of the output should be ({m}, 1)"
+
+    cluster_number = 0
+    clusters = np.unique(c)
+    for i in clusters:
+        c[c == i] = cluster_number
+        cluster_number += 1
+
+    calc_error(c, k)
+
+
+def ridge_regression(X, Y, l):
+    m = X.shape[0]
+    w = np.linalg.inv(X @ np.transpose(X) + l * np.eye(N=m, M=m)) @ X @ Y
+    return w
+
+
+def run_ridge_regression():
+    data = sio.loadmat("regdata.mat")
+    X = data['X']
+    testX = data['Xtest']
+    Y = data['Y']
+    testY = data['Ytest']
+    sizes = list(range(10, 101))
+    opt_l = []
+    for size in sizes:
+        min_mean_squared_error = np.inf
+        curr_opt_l = -1
+        for l in range(31):
+            w = ridge_regression(X[:, :size], Y[:size], l)
+            curr_mean_squared_error = (np.linalg.norm(w) ** 2) * l + np.linalg.norm(np.transpose(testX) @ w - testY) ** 2
+            if curr_mean_squared_error < min_mean_squared_error:
+                min_mean_squared_error = curr_mean_squared_error
+                curr_opt_l = l
+        opt_l.append(curr_opt_l)
+        print(f"for size {size}: optimal lambda is {opt_l[size-10]} with mean error {min_mean_squared_error}")
+
+    plt.plot(sizes, opt_l)
+    plt.xlabel("Sample Size")
+    plt.ylabel("Lambda")
+    plt.title("lambda as function of sample size")
+    plt.show()
+
+
 if __name__ == '__main__':
     # before submitting, make sure that the function simple_test runs without errors
-    simple_test()
-
+    # simple_test()
+    # 1.d
+    # run_on_random()
     # here you may add any code that uses the above functions to solve question 2
+
+    run_ridge_regression()
