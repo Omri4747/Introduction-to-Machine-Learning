@@ -77,7 +77,7 @@ def run_on_random():
     m, d = X.shape
 
     # run K-means
-    k = 6
+    k = 10
     c = kmeans(X, k, t=10)
 
     assert isinstance(c, np.ndarray), "The output of the function softsvm should be a numpy array"
